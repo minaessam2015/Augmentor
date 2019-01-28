@@ -245,8 +245,9 @@ class Pipeline(object):
                         for op in self.operations :
                             operations_names+= str(op)+'_'
                         
-                        save_name = os.path.basename(augmentor_image.image_path).split('.')[0] \
-                        +'_' + operations_names+ "." + (self.save_format if self.save_format else augmentor_image.file_format)
+                        save_name = os.path.basename(augmentor_image.image_path) \
+                        +'_' + operations_names+ "." + \
+                        (self.save_format if self.save_format else augmentor_image.file_format)
                         images[i].save(os.path.join(augmentor_image.output_directory, save_name))
 
                     else:
@@ -1648,8 +1649,15 @@ class Pipeline(object):
 
         else:
             self.add_operation(Sharpen(probability,min_factor,max_factor))
+    
+    def zoom_out(self,probability,min_factor,max_factor,anchor):
+        """
+        """
 
-
+        if not 0 < probability <= 1:
+            raise ValueError(Pipeline._probability_error_text)
+        else:
+            self.add_operation(ZoomOut(probability,min_factor,max_factor,anchor))
 
     def random_erasing(self, probability, rectangle_area):
         """

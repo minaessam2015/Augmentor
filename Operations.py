@@ -1766,6 +1766,69 @@ class Zoom(Operation):
 
         return augmented_images
 
+class ZoomOut(Operation):
+    """
+    this class is used to zoom out , by resizing the image to smaller one then put it back 
+    to its original size, this is controlled by the anchor parameter
+    """
+    def __init__(self, probability,min_factor,max_factor,anchor=None):
+        """
+        probability : 
+        min_factor : 0-1
+        max_ factor : 0-1
+        anchor : 'top_left','top_right','bottom_left','bottom_right','center'
+        """
+        anchors = {0:'top_left',1:'top_right',2:'bottom_left',3:'bottom_right',4:'center'}
+        self.min_factor = min_factor
+        self.max_factor = max_factor
+        if anchor == None:
+            rand = random.randint(0,4)
+            self.anchor = anchors[rand]
+        else:
+            self.anchor = anchor
+
+        return super().__init__(probability)
+
+    def perform_operation(self, images):
+        """"""
+
+        factor = round(random.uniform(self.min_factor, self.max_factor), 2)
+
+        def do(image):
+
+            original_h,original_w = image.shape[0],image.shape[1]
+
+            image_zoomed = image.resize((int(round(image.size[0] * factor)),
+                                         int(round(image.size[1] * factor))),
+                                         resample=Image.BICUBIC)
+            new_h,new_w = image_zoomed.shape[0],image_zoomed.shape[1]
+            # final_image = np.zeros(shape=image.shape,dtype=np.uint8)
+            final_image = np.zeros_like(image.shape)
+
+            if self.anchor == 'top_left':
+                final_image[0:new_h,0:new_w] = image
+            elif self.anchor == 'top_right':
+                final_image[0:new_h , original_w - new_w : original_w] = image
+            elif self.anchor == 'bottom_left':
+                final_image[ original_h - new_h : original_h , 0:new_w ] = image
+            elif self.anchor == 'bottom_right':
+                final_image[ original_h - new_h : original_h , original_w - new_w : original_w ] = image
+            elif self.anchor == 'center':
+                h_offset = (original_h - new_h)//2
+                w_offset = (original_w - new_w)//2
+                final_image[ h_offset: h_offset+new_h , w_offset : w_offset+new_w ] = image
+
+            return final_image
+
+        augmented_images = []
+
+        for image in images:
+            augmented_images.append(do(image))
+        
+        return augmented_images
+
+        def __str__(self):
+            return self.__class__.__name__+'_'+str(self.min_factor)+'_'+str(self.max_factor)+'_'+self.anchor
 
 class ZoomRandom(Operation):
     """

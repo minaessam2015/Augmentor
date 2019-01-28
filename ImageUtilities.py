@@ -349,7 +349,7 @@ def scan_directory(source_directory):
         for file_type in file_types:
             list_of_files.extend(glob.glob(os.path.join(os.path.abspath(source_directory), file_type)))
 
-    return list_of_files
+    return sorted(list_of_files)
 
 
 def scan_directory_with_classes(source_directory):

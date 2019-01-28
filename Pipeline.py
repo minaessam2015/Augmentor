@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from tqdm import tqdm
 from PIL import Image
-
+from glob import glob
 
 class Pipeline(object):
     """
@@ -221,6 +221,7 @@ class Pipeline(object):
             else:
                 images.append(Image.open(augmentor_image.ground_truth))
 
+
         for operation in self.operations:
             r = round(random.uniform(0, 1), 1)
             if r <= operation.probability:
@@ -251,16 +252,25 @@ class Pipeline(object):
                         images[i].save(os.path.join(augmentor_image.output_directory, save_name))
 
                     else:
-                        save_name = "_groundtruth_(" \
-                                    + str(i) \
-                                    + ")_" \
-                                    + augmentor_image.class_label \
-                                    + "_" \
-                                    + os.path.basename(augmentor_image.image_path) \
-                                    + "_" \
-                                    + file_name \
-                                    + "." \
-                                    + (self.save_format if self.save_format else augmentor_image.file_format)
+                        # save_name = "_groundtruth_(" \
+                        #             + str(i) \
+                        #             + ")_" \
+                        #             + augmentor_image.class_label \
+                        #             + "_" \
+                        #             + os.path.basename(augmentor_image.image_path) \
+                        #             + "_" \
+                        #             + file_name \
+                        #             + "." \
+                        #             + (self.save_format if self.save_format else augmentor_image.file_format)
+
+                        operations_names = ''
+                        for op in self.operations :
+                            operations_names+= str(op)+'_'
+                        
+                        save_name = os.path.basename(augmentor_image.ground_truth) \
+                        +'_' + operations_names+ "." + \
+                        (self.save_format if self.save_format else augmentor_image.file_format)
+                        images[i].save(os.path.join(augmentor_image.output_directory, save_name))
     
 
             except IOError as e:
@@ -1650,7 +1660,7 @@ class Pipeline(object):
         else:
             self.add_operation(Sharpen(probability,min_factor,max_factor))
     
-    def zoom_out(self,probability,min_factor,max_factor,anchor):
+    def zoom_out(self,probability,min_factor,max_factor,anchor=None):
         """
         """
 
@@ -1760,6 +1770,50 @@ class Pipeline(object):
             self.process_ground_truth_images = True
 
         print("%s ground truth image(s) found." % num_of_ground_truth_images_added)
+
+
+    def ground_truth_masks(self, ground_truth_directory):
+        """
+        bind ground truth label to image based on the largest match,
+
+        :param ground_truth_directory: A directory containing the
+        ground truth images that correspond to the images in the
+        current pipeline.
+        :type ground_truth_directory: String
+        :return: None.
+        """
+
+      
+
+        # Progress bar
+        progress_bar = tqdm(total=len(self.augmentor_images), desc="Processing", unit=' Images', leave=False)
+
+        masks = sorted(glob(os.path.join(ground_truth_directory,'*_mask*')))
+
+        read = 0
+        matched = 0
+        for mask,image in zip(masks,self.augmentor_images):
+            
+            if os.path.basename(mask).split('_')[:-1] == image.image_file_name.split('_')[:-1]:
+                matched += 1
+                self.augmentor_images[read].ground_truth = mask
+            else:
+                print( os.path.basename(mask).split('_')[:-1],image.image_file_name.split('_')[:-1])
+
+            read +=1
+            progress_bar.update(1)
+        print(read,matched)
+
+        progress_bar.close()
+
+        # May not be required after all, check later.
+        if matched != 0:
+            self.process_ground_truth_images = True
+            print(self.process_ground_truth_images)
+            print(masks[0])
+
+        print("%s ground truth image(s) found." % matched)
+
 
     def get_ground_truth_paths(self):
         """

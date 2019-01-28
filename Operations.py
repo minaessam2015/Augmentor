@@ -1796,29 +1796,29 @@ class ZoomOut(Operation):
 
         def do(image):
 
-            original_h,original_w = image.shape[0],image.shape[1]
+            original_h,original_w = image.size[0],image.size[1]
 
             image_zoomed = image.resize((int(round(image.size[0] * factor)),
                                          int(round(image.size[1] * factor))),
                                          resample=Image.BICUBIC)
-            new_h,new_w = image_zoomed.shape[0],image_zoomed.shape[1]
-            # final_image = np.zeros(shape=image.shape,dtype=np.uint8)
-            final_image = np.zeros_like(image.shape)
+            new_h,new_w = image_zoomed.size[0],image_zoomed.size[1]
+            image_zoomed = np.array(image_zoomed)
+            final_image = np.zeros_like(np.array(image))
 
             if self.anchor == 'top_left':
-                final_image[0:new_h,0:new_w] = image
+                final_image[0:new_h,0:new_w] = image_zoomed
             elif self.anchor == 'top_right':
-                final_image[0:new_h , original_w - new_w : original_w] = image
+                final_image[0:new_h , original_w - new_w : original_w] = image_zoomed
             elif self.anchor == 'bottom_left':
-                final_image[ original_h - new_h : original_h , 0:new_w ] = image
+                final_image[ original_h - new_h : original_h , 0:new_w ] = image_zoomed
             elif self.anchor == 'bottom_right':
-                final_image[ original_h - new_h : original_h , original_w - new_w : original_w ] = image
+                final_image[ original_h - new_h : original_h , original_w - new_w : original_w ] = image_zoomed
             elif self.anchor == 'center':
                 h_offset = (original_h - new_h)//2
                 w_offset = (original_w - new_w)//2
-                final_image[ h_offset: h_offset+new_h , w_offset : w_offset+new_w ] = image
+                final_image[ h_offset: h_offset+new_h , w_offset : w_offset+new_w ] = image_zoomed
 
-            return final_image
+            return Image.fromarray(final_image)
 
         augmented_images = []
 
@@ -1828,7 +1828,7 @@ class ZoomOut(Operation):
         return augmented_images
 
         def __str__(self):
-            return self.__class__.__name__+'_'+str(self.min_factor)+'_'+str(self.max_factor)+'_'+self.anchor
+            return self.__class__.__name__+'_'+str(self.min_factor)+str(self.max_factor)+self.anchor
 
 class ZoomRandom(Operation):
     """

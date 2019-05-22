@@ -1778,14 +1778,14 @@ class ZoomOut(Operation):
         max_ factor : 0-1
         anchor : 'top_left','top_right','bottom_left','bottom_right','center'
         """
-        anchors = {0:'top_left',1:'top_right',2:'bottom_left',3:'bottom_right',4:'center'}
+        self.anchors = {0:'top_left',1:'top_right',2:'bottom_left',3:'bottom_right',4:'center'}
         self.min_factor = min_factor
         self.max_factor = max_factor
-        if anchor == None:
-            rand = random.randint(0,4)
-            self.anchor = anchors[rand]
-        else:
-            self.anchor = anchor
+
+        self.anchor = anchor
+        # BUG
+        if self.anchor == None:
+            self.anchor = self.anchors[4]
 
         return super().__init__(probability)
 
@@ -1794,16 +1794,25 @@ class ZoomOut(Operation):
 
         factor = round(random.uniform(self.min_factor, self.max_factor), 2)
 
+        # if anchors not specified during initialization take it random every time
+        # by making self.anchors = None after you choose your anchor
+        nulify_anchor = False
+
+        if self.anchor == None:
+            rand = random.randint(0,4)
+            self.anchor = self.anchors[rand]
+            nulify_anchor = True
+
         def do(image):
 
-            original_h,original_w = image.size[0],image.size[1]
+            original_h,original_w = image.size[1],image.size[0]
 
-            image_zoomed = image.resize((int(round(image.size[0] * factor)),
-                                         int(round(image.size[1] * factor))),
+            image_zoomed = image.resize((int(ceil(image.size[0] * factor)),
+                                         int(ceil(image.size[1] * factor))),
                                          resample=Image.BICUBIC)
-            new_h,new_w = image_zoomed.size[0],image_zoomed.size[1]
+            new_h,new_w = image_zoomed.size[1],image_zoomed.size[0]
             image_zoomed = np.array(image_zoomed)
-            final_image = np.zeros_like(np.array(image))
+            final_image = np.zeros_like(np.asarray(image))
 
             if self.anchor == 'top_left':
                 final_image[0:new_h,0:new_w] = image_zoomed
@@ -1816,8 +1825,15 @@ class ZoomOut(Operation):
             elif self.anchor == 'center':
                 h_offset = (original_h - new_h)//2
                 w_offset = (original_w - new_w)//2
+                # print(h_offset,w_offset,new_h,new_w,original_h,original_w)
                 final_image[ h_offset: h_offset+new_h , w_offset : w_offset+new_w ] = image_zoomed
+            else :
+                # BUG
+                # some images end up being None due to multiprocessing
+                # here we use
+                raise ValueError('got %d  for anchor '%(self.anchor))
 
+            # print('anchor used ',self.anchor,'\n')
             return Image.fromarray(final_image)
 
         augmented_images = []
@@ -1825,10 +1841,13 @@ class ZoomOut(Operation):
         for image in images:
             augmented_images.append(do(image))
         
+        # if nulify_anchor:
+        #     self.anchor = None
+
         return augmented_images
 
         def __str__(self):
-            return self.__class__.__name__+'_'+str(self.min_factor)+str(self.max_factor)+self.anchor
+            return str(self.__class__.__name__+'_'+str(self.min_factor)+'_'+str(self.max_factor)+'_'+str(self.anchor))
 
 class ZoomRandom(Operation):
     """
@@ -1968,26 +1987,29 @@ class RandomErasing(Operation):
          PIL.Image.
         """
 
-        def do(image):
+        def do(image,w_occlusion,h_occlusion,random_position_x,random_position_y):
 
-            w, h = image.size
+            # w, h = image.size
 
-            w_occlusion_max = int(w * self.rectangle_area)
-            h_occlusion_max = int(h * self.rectangle_area)
+            # w_occlusion_max = int(w * self.rectangle_area)
+            # h_occlusion_max = int(h * self.rectangle_area)
 
-            w_occlusion_min = int(w * 0.1)
-            h_occlusion_min = int(h * 0.1)
+            # w_occlusion_min = int(w * 0.1)
+            # h_occlusion_min = int(h * 0.1)
 
-            w_occlusion = random.randint(w_occlusion_min, w_occlusion_max)
-            h_occlusion = random.randint(h_occlusion_min, h_occlusion_max)
+            # w_occlusion = random.randint(w_occlusion_min, w_occlusion_max)
+            # h_occlusion = random.randint(h_occlusion_min, h_occlusion_max)
+
+            # #BUG this should be solved
+            # # images are processed on pair basis, but what if an image has multiple masks ?
+            # random_position_x = random.randint(0, w - w_occlusion)
+            # random_position_y = random.randint(0, h - h_occlusion)
 
             if len(image.getbands()) == 1:
-                rectangle = Image.fromarray(np.uint8(np.random.rand(w_occlusion, h_occlusion) * 255))
+                rectangle = Image.fromarray(np.uint8(np.zeros(shape=[w_occlusion, h_occlusion]) ))
             else:
                 rectangle = Image.fromarray(np.uint8(np.random.rand(w_occlusion, h_occlusion, len(image.getbands())) * 255))
 
-            random_position_x = random.randint(0, w - w_occlusion)
-            random_position_y = random.randint(0, h - h_occlusion)
 
             image.paste(rectangle, (random_position_x, random_position_y))
 
@@ -1995,8 +2017,44 @@ class RandomErasing(Operation):
 
         augmented_images = []
 
-        for image in images:
-            augmented_images.append(do(image))
+        prev_img = images[0]
+
+        w, h = images[0].size
+
+        w_occlusion_max = int(w * self.rectangle_area)
+        h_occlusion_max = int(h * self.rectangle_area)
+
+        w_occlusion_min = int(w * 0.1)
+        h_occlusion_min = int(h * 0.1)
+
+        w_occlusion = random.randint(w_occlusion_min, w_occlusion_max)
+        h_occlusion = random.randint(h_occlusion_min, h_occlusion_max)
+
+        #BUG this should be solved
+        # images are processed on pair basis, but what if an image has multiple masks ?
+        random_position_x = random.randint(w//3, w - w_occlusion)
+        random_position_y = random.randint(h//3, h - h_occlusion)
+
+        for i,image in enumerate(images):
+            if image.size != prev_img.size:
+                prev_img = image
+                w, h = prev_img.size
+
+                w_occlusion_max = int(w * self.rectangle_area)
+                h_occlusion_max = int(h * self.rectangle_area)
+
+                w_occlusion_min = int(w * 0.1)
+                h_occlusion_min = int(h * 0.1)
+
+                w_occlusion = random.randint(w_occlusion_min, w_occlusion_max)
+                h_occlusion = random.randint(h_occlusion_min, h_occlusion_max)
+
+                #BUG this should be solved
+                # images are processed on pair basis, but what if an image has multiple masks ?
+                random_position_x = random.randint(w//3, w - w_occlusion)
+                random_position_y = random.randint(h//3, h - h_occlusion)
+
+            augmented_images.append(do(image,w_occlusion,h_occlusion,random_position_x,random_position_y))
 
         return augmented_images
 
@@ -2179,11 +2237,9 @@ class Sharpen (Operation):
     def perform_operation(self,images):
 
         augmented_images = []
-        
 
+        factor = round(random.uniform(self.min_factor, self.max_factor), 2)
         for image in images :
-            factor = round(random.uniform(self.min_factor, self.max_factor), 2)
-
             augmented_images.append(ImageEnhance.Sharpness(image).enhance(factor))
         
         return augmented_images
@@ -2191,3 +2247,76 @@ class Sharpen (Operation):
     def __str__(self):
 
         return self.__class__.__name__+str(self.min_factor)
+
+class Translate(Operation):
+    """
+    this class needs to improve to give random shifting , the solution is to separate ground truth images
+    from the images.
+
+    Translates an image in  directions in x,y 
+    x +ve means shift to right and the remaining left pixels will be black
+    x -ve  means shift to left and the remaining right pixels will be black
+    same goes for y axis
+    """
+    def __init__(self,probability,x_shift,y_shift):
+        """
+        sharpens a given image 
+        probability: 0.0 - 1.0 
+
+        """
+        Operation.__init__(self,probability)
+        self.x_shift = x_shift
+        self.y_shift = y_shift
+
+    def perform_operation(self,images):
+
+        augmented_images = []
+
+        assert self.x_shift < images[0].size[0] and self.y_shift < images[0].size[1], "shift is larger than the image"
+        for image in images :
+            src_start_x,src_start_y,src_end_x,src_end_y = 0,0,0,0
+            dst_start_x,dst_start_y,dst_end_x,dst_end_y = 0,0,0,0
+            src = np.array(image)
+            dst = np.zeros_like(src)
+            H,W = src.shape[0:2]
+
+            if self.x_shift>=0:
+
+                src_start_x = 0
+                src_end_x = W-self.x_shift
+
+                dst_start_x = self.x_shift
+                dst_end_x = W
+            else:
+                src_start_x = abs(self.x_shift)
+                src_end_x = W
+
+                dst_start_x = 0
+                dst_end_x = W - abs(self.x_shift)
+
+            if self.y_shift>=0:
+                src_start_y = 0
+                src_end_y = H - self.y_shift
+
+                dst_start_y = self.y_shift
+                dst_end_y = H
+
+            else:
+                src_start_y = abs(self.y_shift)
+                src_end_y = H
+
+                dst_start_y = 0
+                dst_end_y = H - abs(self.y_shift)
+            
+            # print(src_start_x,src_start_y,src_end_x,src_end_y)
+            # print(dst_start_x,dst_start_y,dst_end_x,dst_end_y)
+            dst[dst_start_y:dst_end_y,dst_start_x:dst_end_x] = src[src_start_y:src_end_y,src_start_x:src_end_x]
+            
+            augmented_images.append(Image.fromarray(dst))
+       
+        
+        return augmented_images
+
+    def __str__(self):
+
+        return self.__class__.__name__+str(self.x_shift)+'_'+str(self.y_shift)

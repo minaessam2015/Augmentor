@@ -270,7 +270,17 @@ class Pipeline(object):
                         save_name = os.path.basename(augmentor_image.ground_truth) \
                         +'_' + operations_names+ "." + \
                         (self.save_format if self.save_format else augmentor_image.file_format)
-                        images[i].save(os.path.join(augmentor_image.output_directory, save_name))
+                        # TODO 
+                        # make it a different directory
+                        head,tail = os.path.split(augmentor_image.output_directory)
+                        final_path =os.path.join(augmentor_image.output_directory,'masks')
+ 
+                        if 'images' in tail:
+                            final_path = os.path.join(head,'masks')
+                        
+                        if not os.path.exists(final_path):
+                            os.mkdir(final_path)
+                        images[i].save(os.path.join(final_path, save_name))
     
 
             except IOError as e:
@@ -1701,6 +1711,21 @@ class Pipeline(object):
         else:
             self.add_operation(RandomErasing(probability=probability, rectangle_area=rectangle_area))
 
+    def translate(self, probability, x_shift,y_shift):
+        """
+        this method needs to improve to give random shifting , the solution is to separate ground truth images
+        from the images.
+
+        Translates an image in  directions in x,y 
+        x +ve means shift to right and the remaining left pixels will be black
+        x -ve  means shift to left and the remaining right pixels will be black
+        same goes for y axis
+        """
+        if not 0 < probability <= 1:
+            raise ValueError(Pipeline._probability_error_text)
+        else:
+            self.add_operation(Translate(probability=probability, x_shift=x_shift,y_shift=y_shift))
+
     def ground_truth(self, ground_truth_directory):
         """
         Specifies a directory containing corresponding images that
@@ -1793,10 +1818,13 @@ class Pipeline(object):
         read = 0
         matched = 0
         for mask,image in zip(masks,self.augmentor_images):
+
+            common_name_index = os.path.basename(mask).find('_mask')
             
-            if os.path.basename(mask).split('_')[:-1] == image.image_file_name.split('_')[:-1]:
-                matched += 1
-                self.augmentor_images[read].ground_truth = mask
+            if common_name_index != -1 :
+                if os.path.basename(mask)[:common_name_index-1] == image.image_file_name[:common_name_index-1]:
+                    matched += 1
+                    self.augmentor_images[read].ground_truth = mask
             else:
                 print( os.path.basename(mask).split('_')[:-1],image.image_file_name.split('_')[:-1])
 

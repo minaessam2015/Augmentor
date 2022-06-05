@@ -1797,7 +1797,7 @@ class Pipeline(object):
         print("%s ground truth image(s) found." % num_of_ground_truth_images_added)
 
 
-    def ground_truth_masks(self, ground_truth_directory):
+    def ground_truth_masks(self, ground_truth_directory,extension='.tif'):
         """
         bind ground truth label to image based on the largest match,
 
@@ -1813,20 +1813,21 @@ class Pipeline(object):
         # Progress bar
         progress_bar = tqdm(total=len(self.augmentor_images), desc="Processing", unit=' Images', leave=False)
 
-        masks = sorted(glob(os.path.join(ground_truth_directory,'*_mask*')))
+        masks = sorted(glob(os.path.join(ground_truth_directory,'*'+extension)))
 
         read = 0
         matched = 0
         for mask,image in zip(masks,self.augmentor_images):
 
             common_name_index = os.path.basename(mask).find('_mask')
-            
-            if common_name_index != -1 :
-                if os.path.basename(mask)[:common_name_index-1] == image.image_file_name[:common_name_index-1]:
-                    matched += 1
-                    self.augmentor_images[read].ground_truth = mask
-            else:
-                print( os.path.basename(mask).split('_')[:-1],image.image_file_name.split('_')[:-1])
+            matched += 1
+            self.augmentor_images[read].ground_truth = mask
+            # if common_name_index != -1 :
+            #     if os.path.basename(mask)[:common_name_index-1] == image.image_file_name[:common_name_index-1]:
+            #         matched += 1
+            #         self.augmentor_images[read].ground_truth = mask
+            # else:
+            #     print( os.path.basename(mask).split('_')[:-1],image.image_file_name.split('_')[:-1])
 
             read +=1
             progress_bar.update(1)
